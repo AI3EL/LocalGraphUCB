@@ -35,7 +35,6 @@ class InfluenceGraph:
         r = np.random.rand(self.n-1)
         mask = np.ones(self.n, dtype=bool)
         mask[a] = False
-        print(self.P[a][mask])
         return sum((r < self.P[a][mask]).astype(int))
 
     def observe_full(self, a):
@@ -48,7 +47,6 @@ class InfluenceGraph:
                     if i == a or j == a:
                         d += 1
                     components.merge(i, j)
-        print(components.comps)
         return components.get_size(a), d
 
 
@@ -84,5 +82,67 @@ class SimpleSBM(SBM):
         SBM.__init__(self, K, pops)
 
 
+# Attention a ne pas confondre a et V0[a] !
+class DUCB:
+    def __init__(self, graph, V0):
+        self.env = graph
+        self.V0 = V0
+        self.mu = np.array([self.env.observe_degree(i) for i in V0], dtype=np.float)
+        self.N = np.ones(len(V0), dtype=int)
+        self.t = len(V0)
+        print('d-UCB created')
+
+    def act(self, T):
+        while self.t < T:
+            a = self.select_action()
+            d = self.env.observe_degree(self.V0[a])
+            self.mu[a] = (self.N[a]*self.mu[a] + d)/(self.N[a]+1)
+            self.N[a] += 1
+            self.t += 1
+            # print('mu')
+            # print(self.mu)
+            # print('N')
+            # print(self.N)
+
+    # Etude derivee montre que f en V, min en mu_a. Donc mu* >= mua
+    def select_action(self):
+        log_mu = np.log(self.mu)
+        U_vect = []
+        for mu_a, log_mu_a, N_a in zip(self.mu, log_mu, self.N):
+            U = lambda mu: mu + mu_a * (log_mu_a - np.log(mu) - 1) - 3 * np.log(self.t) / N_a
+            mu = mu_a
+
+            # Ill defined but quite intuitive
+            if not mu:
+                U_vect.append(np.inf)
+            # Convention de sup ensemble vide = -inf
+            elif U(mu) > 0:
+                U_vect.append(-np.inf)
+            else:
+                while U(mu) < 0:
+                    mu *= 2
+                U_vect.append(dicho(U, mu / 2, mu))
+                assert U(U_vect[-1]) < 0
+        # print('U_vect')
+        # print(U_vect)
+        return np.argmax(U_vect)
+
+
+def dicho(f, a, b, eps=1e-6, tmax=100):
+    for i in range(tmax):
+        if abs(a-b) < eps:
+            return a
+        if f((a+b)/2) > 0:
+            b = (a+b)/2
+        else:
+            a = (a+b)/2
+    print('Dichotomy failed')
+    return a
+
 graph = SimpleSBM(0.05, 0.2, [2,8])
-print(graph.observe_full(1))
+ducb = DUCB(graph, range(10))
+ducb.act(1000)
+print(ducb.mu)
+print(ducb.N)
+print('True mus')
+print(graph.P.sum(axis=0))
