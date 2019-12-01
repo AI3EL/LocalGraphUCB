@@ -4,24 +4,29 @@ import numpy as np
 class CC:
     def __init__(self, n):
         self.n = n
-        self.comps = list(range(n))
+        self.heads = list(range(n))
         self.members = [[i] for i in range(n)]
+        self.n_comp = n
 
     # put the comp of a in the comp of b
     def merge(self, a, b):
 
-        a_comp = self.comps[a]
-        b_comp = self.comps[b]
+        a_comp = self.heads[a]
+        b_comp = self.heads[b]
         if a_comp == b_comp:
             return
 
+        self.n_comp -= 1
         for i in self.members[a_comp]:
-            self.comps[i] = b_comp
+            self.heads[i] = b_comp
             self.members[b_comp].append(i)
         self.members[a_comp] = []
 
     def get_size(self, a):
-        return len(self.members[self.comps[a]])
+        return len(self.members[self.heads[a]])
+
+    def get_sizes(self):
+        return [len(self.members[self.heads[i]]) for i in range(self.n)]
 
 
 class InfluenceGraph:
@@ -47,7 +52,7 @@ class InfluenceGraph:
                     if i == a or j == a:
                         d += 1
                     components.merge(i, j)
-        return d, components.get_size(a)
+        return d, components.get_sizes(), components.n_comp
 
 
 class SBM(InfluenceGraph):
@@ -79,4 +84,5 @@ class SimpleSBM(SBM):
         S = len(pops)
         K = np.ones((S,S))*k_diff
         np.fill_diagonal(K, k_same)
+        print('Alpha optimal for this graph is: ', max(pops)/sum(pops))
         SBM.__init__(self, K, pops)
