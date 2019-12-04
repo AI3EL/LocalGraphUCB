@@ -10,7 +10,6 @@ class CC:
 
     # put the comp of a in the comp of b
     def merge(self, a, b):
-
         a_comp = self.heads[a]
         b_comp = self.heads[b]
         if a_comp == b_comp:
@@ -86,3 +85,14 @@ class SimpleSBM(SBM):
         np.fill_diagonal(K, k_same)
         print('Alpha optimal for this graph is: ', max(pops)/sum(pops))
         SBM.__init__(self, K, pops)
+
+
+
+class SimpleCLM(InfluenceGraph):
+    def __init__(self, w):
+        n = len(w)
+        w = np.array(w)
+        self.P = np.outer(w,w)
+        self.n = n
+        
+        

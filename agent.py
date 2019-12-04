@@ -1,5 +1,5 @@
 import numpy as np
-from environment import SimpleSBM, SBM
+from environment import SimpleSBM, SBM, SimpleCLM
 import matplotlib.pyplot as plt
 
 # TODO: PB: l'estimation du alpha regret est lineaire ...
@@ -29,7 +29,7 @@ class DUCB:
             candidate = np.ceil(np.log(T)/np.log(1/(1-alpha)))
             if candidate > graph.n:
                 print('Alpha gave too many nodes for this T, taking graph.n')
-            spl_size = min(int(np.ceil(np.log(T)/np.log(1/(1-alpha)))), graph.n)
+            spl_size = min(int(candidate), graph.n)
         print('Sample size', spl_size)
         self.V0 = np.random.choice(range(graph.n), spl_size, False)
         self.V0.sort()  # TODO: remove
@@ -74,6 +74,46 @@ class DUCB:
             self.degrees.append(d)
 
             self.log()
+
+    def act_double(self, k_max, beta):
+        self.V0 = None
+        self.T = 1
+        end = False
+        for k in range(k_max):
+            if not self.alpha:
+                spl_size = graph.n
+            elif self.t >= graph.n:
+                spl_size = -1
+            else:
+                candidate = np.ceil(np.log(beta)/np.log(1/(1-self.alpha)))
+                if candidate > graph.n - self.t:
+                    print('Alpha gave too many nodes for this T, taking graph.n')
+                spl_size = min(int(candidate), graph.n - self.t)
+            print('Sample size', spl_size)
+
+            if self.V0 is None and spl_size != -1:
+                self.V0 = np.random.choice(range(graph.n), spl_size, False)
+                self.mu = np.array([self.graph.observe_degree(i) for i in self.V0], dtype=np.float)
+                self.N  = np.ones(spl_size, dtype=int)
+                self.t = spl_size
+                self.T *= beta
+            elif spl_size != -1:
+                untouched = [i for i in list(range(graph.n)) if i not in self.V0]
+                Uk = np.random.choice(untouched, spl_size, False)
+                self.V0 = np.concatenate((self.V0, Uk))
+                self.mu = np.concatenate((self.mu,
+                                         np.array([self.graph.observe_degree(i) for i in Uk], dtype=np.float)))
+                self.N = np.concatenate((self.N, np.ones(spl_size, dtype=int)))
+                self.T *= beta
+            else:
+                self.T = pow(beta, k_max)
+                end = True
+
+            self.act()
+
+            if end: break
+
+
 
     def log(self):
         self.degree_regret.append(self.t*self.mu_star - self.cum_degree)
@@ -161,6 +201,9 @@ def dicho(f, a, b, eps=1e-3, tmax=1000):
     return a
 
 
+#graph = SimpleSBM(0.005, 0.1, [5,5,10,5,5])
+# graph = SimpleSBM(0.025, 0.1, [10, 20, 15, 30])
+#graph = SimpleCLM([0.8]*10+[0.1]*100)
 graph = SimpleSBM(0.01, 0.1, [5,5,10,5])
 n_rep = 3
 ducbs = []
