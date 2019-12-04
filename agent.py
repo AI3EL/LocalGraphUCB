@@ -32,6 +32,8 @@ class DUCB:
             spl_size = min(int(np.ceil(np.log(T)/np.log(1/(1-alpha)))), graph.n)
         print('Sample size', spl_size)
         self.V0 = np.random.choice(range(graph.n), spl_size, False)
+        self.V0.sort()  # TODO: remove
+        print(self.V0)
         self.mu = np.array([self.graph.observe_degree(i) for i in self.V0], dtype=np.float)
         self.N = np.ones(spl_size, dtype=int)
         self.t = spl_size
@@ -41,6 +43,8 @@ class DUCB:
         self.cum_degree = 0
         self.opt_cum_reward = 0
         self.alpha_opt_cum_reward = 0
+        self.a_star = np.argmax(self.graph.P.sum(axis=0))
+        self.a_alpha_star = np.argsort(self.graph.P.sum(axis=0))[int((1-alpha)*graph.P.shape[0])]
         self.mu_star = max(self.graph.P.sum(axis=0))
         self.alpha_mu_star = np.quantile(self.graph.P.sum(axis=0), 1-alpha)
         print('mustar',self.mu_star)
@@ -52,7 +56,7 @@ class DUCB:
         self.real_regret = []
         self.alpha_real_regret = []
         self.n_comps = []
-
+        self.degrees = []
 
     def act(self):
         while self.t < self.T:
@@ -62,13 +66,12 @@ class DUCB:
             self.N[a] += 1
             self.t += 1
 
-            # if max(c_list) != int(np.quantile(c_list, 1-self.alpha)):
-            #     print('Different !')
             self.cum_degree += d
             self.cum_reward += c_list[a]
-            self.opt_cum_reward += max(c_list)
-            self.alpha_opt_cum_reward += np.quantile(c_list, 1-self.alpha)
+            self.opt_cum_reward += c_list[self.a_star]
+            self.alpha_opt_cum_reward += c_list[self.a_alpha_star]
             self.n_comps.append(n_comp)
+            self.degrees.append(d)
 
             self.log()
 
@@ -77,6 +80,11 @@ class DUCB:
         self.alpha_degree_regret.append(self.t*self.alpha_mu_star - self.cum_degree)
         self.real_regret.append(self.opt_cum_reward - self.cum_reward)
         self.alpha_real_regret.append(self.alpha_opt_cum_reward - self.cum_reward)
+
+    def get_N(self):
+        N = np.zeros(self.graph.n, dtype=int)
+        N[self.V0] += self.N
+        return N
 
     # Etude derivee montre que f en V, min en mu_a. Donc mu* >= mua
     def select_action(self):
@@ -97,28 +105,51 @@ class DUCB:
                     mu *= 2
                 U_vect.append(dicho(U, mu / 2, mu))
                 assert U(U_vect[-1]) < 0
+        # print('mu')
+        # print(self.mu)
         # print('U_vect')
         # print(U_vect)
         return np.argmax(U_vect)
 
-    def plot_perf(self):
-        plt.hist(self.n_comps)
+    @staticmethod
+    def plot_perf(algs):
+        # plt.hist(self.n_comps)
+        # plt.title('Histogram of number of connected components')
+        # plt.show()
+        hists = [np.histogram(alg.n_comps)[0] for alg in algs]
+        mean = np.mean(hists, axis=0)
+        std = np.std(hists, axis=0)
+        xs = range(mean.shape[0])
+        plt.plot(xs, mean)
+        plt.fill_between(xs, mean - 2 * std, mean + 2 * std, alpha=0.15)
         plt.title('Histogram of number of connected components')
         plt.show()
+
+        Ns = np.array([alg.get_N() for alg in algs])
+        mean = np.mean(Ns, axis=0)
+        std = np.std(Ns, axis=0)
+        xs = range(mean.shape[0])
+        plt.plot(xs, mean)
+        plt.fill_between(xs, mean - 2 * std, mean + 2 * std, alpha=0.15)
+        plt.title('Histogram of number of times action was taken')
+        plt.show()
+
         f, axs = plt.subplots(2,2)
-        xs = range(len(self.degree_regret))
-        axs[0][0].plot(xs, self.degree_regret, label='d')
-        axs[0][0].set_title('Degree Regret')
-        axs[0][1].plot(xs, self.alpha_degree_regret, label='ad')
-        axs[0][1].set_title('Alpha Degree Regret')
-        axs[1][0].plot(xs, self.real_regret, label='c')
-        axs[1][0].set_title('Component Regret')
-        axs[1][1].plot(xs, self.alpha_real_regret, label='ac')
-        axs[1][1].set_title('Alpha Component Regret')
+        attr_list = ['degree_regret', 'alpha_degree_regret', 'real_regret', 'alpha_real_regret']
+        data = [np.array([getattr(alg, attr) for alg in algs]) for attr in attr_list]
+        names = ['degree', 'alpha_degree', 'real', 'alpha_real']
+        ax_list = axs.flatten()
+        for ax, dat, name in zip(ax_list, data, names):
+            mean = np.mean(dat, axis=0)
+            std = np.std(dat, axis=0)
+            xs = range(mean.shape[0])
+            ax.plot(xs, mean)
+            ax.fill_between(xs, mean - 2*std, mean+2*std, alpha=0.15)
+            ax.set_title(name)
         plt.show()
 
 
-def dicho(f, a, b, eps=1e-6, tmax=1000):
+def dicho(f, a, b, eps=1e-3, tmax=1000):
     for i in range(tmax):
         if abs(a-b) < eps:
             return a
@@ -130,7 +161,12 @@ def dicho(f, a, b, eps=1e-6, tmax=1000):
     return a
 
 
-graph = SimpleSBM(0.005, 0.1, [5,5,10,5,5])
-ducb = DUCB(graph, 0.2, 1000)
-ducb.act()
-ducb.plot_perf()
+graph = SimpleSBM(0.01, 0.1, [5,5,10,5])
+n_rep = 3
+ducbs = []
+for i in range(n_rep):
+    ducb = DUCB(graph, 0.2, 1000)
+    ducb.act()
+    ducbs.append(ducb)
+
+DUCB.plot_perf(ducbs)
