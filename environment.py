@@ -80,19 +80,25 @@ class SBM(InfluenceGraph):
 
 class SimpleSBM(SBM):
     def __init__(self, k_diff, k_same, pops):
+        self.k_diff = k_diff
+        self.k_same = k_same
         S = len(pops)
         K = np.ones((S,S))*k_diff
         np.fill_diagonal(K, k_same)
         print('Alpha optimal for this graph is: ', max(pops)/sum(pops))
         SBM.__init__(self, K, pops)
 
+    def __str__(self):
+        return 'k_diff: {}\n' \
+               'k_same: {}\n' \
+               'n: {}\n' \
+               'pops: '.format(self.k_diff, self.k_same, sum(self.pops)) + str(self.pops)
 
 
 class SimpleCLM(InfluenceGraph):
     def __init__(self, w):
-        n = len(w)
-        w = np.array(w)
-        self.P = np.outer(w,w)
-        self.n = n
-        
-        
+        self.w = w
+        InfluenceGraph.__init__(self, np.outer(w, w))
+
+    def __str__(self):
+        return 'w: ' + str(self.w)
