@@ -32,7 +32,7 @@ def plot_perf(algs, save_dir=None, rm_mode=False):
     xs = np.mean(bin_edges, axis=0)
     plt.plot(xs, mean)
     plt.fill_between(xs, mean - 2 * std, mean + 2 * std, alpha=0.15)
-    plt.title('Histogram of number of connected components')
+    plt.title('Histogram of number of connected components (max={}'.format(algs[0].graph.n))
     save_or_show('component_sizes_histogram', save_dir, rm_mode)
 
     # Histogram of number of times action was taken
@@ -66,7 +66,7 @@ def plot_perf(algs, save_dir=None, rm_mode=False):
 def test_graph(graph, alpha, T, n_rep, save_dir=None, rm_mode=False):
     ducbs = []
     for i in range(n_rep):
-        print('Iteration {}/{}'.format(i, n_rep),)
+        print('Iteration {}/{}'.format(i+1, n_rep),)
         ducb = DUCB(graph, alpha, T)
         ducb.act()
         ducbs.append(ducb)
@@ -88,5 +88,5 @@ def test_graph(graph, alpha, T, n_rep, save_dir=None, rm_mode=False):
 # graph = SimpleSBM(0.005, 0.1, [5,5,10,5,5])
 # graph = SimpleSBM(0.025, 0.1, [10, 20, 15, 30])
 # graph = SimpleCLM([0.8]*10+[0.1]*100)
-graph = SimpleSBM(0.001, 0.1, [5]*29 + [20])
-test_graph(graph, 0.3, 1000, 4, 'results/SBM9', rm_mode=True)
+graph = SimpleSBM(0.001, 0.1, [20,20,40,20])
+test_graph(graph, 0.1, 5000, 2, 'results/SBM20', rm_mode=True)

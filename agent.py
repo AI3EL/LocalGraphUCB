@@ -1,5 +1,5 @@
 import numpy as np
-
+import random
 
 # TODO: trouver comment choisir les parametres de graphe pour ne pas avoir une composante connexe uniquement
 # TODO: ou n composante connexes ... : un truc du genre p = 1/n pour l'exterieur et autre pour les diffs.
@@ -26,7 +26,6 @@ class DUCB:
                 print('Alpha gave too many nodes for this T, taking graph.n')
             spl_size = min(int(candidate), graph.n)
         self.V0 = np.random.choice(range(graph.n), spl_size, False)
-        self.V0.sort()  # TODO: remove
         self.mu = np.array([self.graph.observe_degree(i) for i in self.V0], dtype=np.float)
         self.N = np.ones(spl_size, dtype=int)
         self.t = spl_size
@@ -38,8 +37,8 @@ class DUCB:
         self.alpha_opt_cum_reward = 0
         self.a_star = np.argmax(self.graph.P.sum(axis=0))
         self.a_alpha_star = np.argsort(self.graph.P.sum(axis=0))[int((1-alpha)*graph.P.shape[0])]
-        self.mu_star = max(self.graph.P.sum(axis=0))
-        self.alpha_mu_star = np.quantile(self.graph.P.sum(axis=0), 1-alpha)
+        self.mu_star = self.graph.P.sum(axis=0)[self.a_star]
+        self.alpha_mu_star = self.graph.P.sum(axis=0)[self.a_alpha_star]
 
         # List of values:
         self.degree_regret = []
@@ -58,11 +57,13 @@ class DUCB:
             self.t += 1
 
             self.cum_degree += d
-            self.cum_reward += c_list[a]
+            self.cum_reward += c_list[self.V0[a]]
             self.opt_cum_reward += c_list[self.a_star]
             self.alpha_opt_cum_reward += c_list[self.a_alpha_star]
             self.n_comps.append(n_comp)
             self.degrees.append(d)
+            # if self.t>1000:
+            #     print(c_list[self.a_alpha_star]-c_list[self.V0[a]])
 
             self.log()
 
@@ -73,24 +74,24 @@ class DUCB:
         end = False
         for k in range(k_max):
             if not self.alpha and not self.V0 is None:
-                spl_size = graph.n
-            elif self.N.shape[0] >= graph.n and not self.V0 is None:
+                spl_size = self.graph.n
+            elif self.N.shape[0] >= self.graph.n and not self.V0 is None:
                 spl_size = -1
             else:
                 candidate = np.ceil(np.log(beta)/np.log(1/(1-self.alpha)))
-                if candidate > graph.n - self.N.shape[0]:
+                if candidate > self.graph.n - self.N.shape[0]:
                     print('Alpha gave too many nodes for this T, taking graph.n')
-                spl_size = min(int(candidate), graph.n - self.N.shape[0])
+                spl_size = min(int(candidate), self.graph.n - self.N.shape[0])
             print('Sample size', spl_size)
 
             if self.V0 is None and spl_size != -1:
-                self.V0 = np.random.choice(range(graph.n), spl_size, False)
+                self.V0 = np.random.choice(range(self.graph.n), spl_size, False)
                 self.mu = np.array([self.graph.observe_degree(i) for i in self.V0], dtype=np.float)
                 self.N  = np.ones(spl_size, dtype=int)
                 self.t = spl_size
                 self.T *= beta
             elif spl_size != -1:
-                untouched = [i for i in list(range(graph.n)) if i not in self.V0]
+                untouched = [i for i in list(range(self.graph.n)) if i not in self.V0]
                 Uk = np.random.choice(untouched, spl_size, False)
                 self.V0 = np.concatenate((self.V0, Uk))
                 self.mu = np.concatenate((self.mu,
@@ -135,8 +136,8 @@ class DUCB:
                 while U(mu) < 0:
                     mu *= 2
                 U_vect.append(dicho(U, mu / 2, mu))
-                assert U(U_vect[-1]) < 0
-        return np.argmax(U_vect)
+        best = np.argwhere(U_vect == np.amax(U_vect))[0]
+        return random.choice(best)
 
 
 def dicho(f, a, b, eps=0.01, tmax=1000):
