@@ -78,17 +78,18 @@ class DUCB:
     def act_double(self, k_max, beta):
         self.V0 = None
         self.T = 1
+        self.t = 0
         end = False
         for k in range(k_max):
-            if not self.alpha:
+            if not self.alpha and not self.V0 is None:
                 spl_size = graph.n
-            elif self.t >= graph.n:
+            elif self.N.shape[0] >= graph.n and not self.V0 is None:
                 spl_size = -1
             else:
                 candidate = np.ceil(np.log(beta)/np.log(1/(1-self.alpha)))
-                if candidate > graph.n - self.t:
+                if candidate > graph.n - self.N.shape[0]:
                     print('Alpha gave too many nodes for this T, taking graph.n')
-                spl_size = min(int(candidate), graph.n - self.t)
+                spl_size = min(int(candidate), graph.n - self.N.shape[0])
             print('Sample size', spl_size)
 
             if self.V0 is None and spl_size != -1:
@@ -106,6 +107,7 @@ class DUCB:
                 self.N = np.concatenate((self.N, np.ones(spl_size, dtype=int)))
                 self.T *= beta
             else:
+                print("V0 full")
                 self.T = pow(beta, k_max)
                 end = True
 
@@ -157,14 +159,16 @@ class DUCB:
         # plt.title('Histogram of number of connected components')
         # plt.show()
         hists = [np.histogram(alg.n_comps)[0] for alg in algs]
+        bin_edges = [np.histogram(alg.n_comps)[1][:-1] for alg in algs]
         mean = np.mean(hists, axis=0)
         std = np.std(hists, axis=0)
-        xs = range(mean.shape[0])
+        xs = np.mean(bin_edges, axis=0).astype(int)
         plt.plot(xs, mean)
         plt.fill_between(xs, mean - 2 * std, mean + 2 * std, alpha=0.15)
         plt.title('Histogram of number of connected components')
         plt.show()
 
+        plt.figure()
         Ns = np.array([alg.get_N() for alg in algs])
         mean = np.mean(Ns, axis=0)
         std = np.std(Ns, axis=0)
@@ -204,12 +208,14 @@ def dicho(f, a, b, eps=1e-3, tmax=1000):
 #graph = SimpleSBM(0.005, 0.1, [5,5,10,5,5])
 # graph = SimpleSBM(0.025, 0.1, [10, 20, 15, 30])
 #graph = SimpleCLM([0.8]*10+[0.1]*100)
-graph = SimpleSBM(0.01, 0.1, [5,5,10,5])
+graph = SimpleSBM(0.001, 0.01, [50,50,100,50]) #test1, 0.01 0.1  50 50 100 50        double k 10 beta 2
 n_rep = 3
 ducbs = []
 for i in range(n_rep):
     ducb = DUCB(graph, 0.2, 1000)
-    ducb.act()
+    #ducb.act()
+    ducb.act_double(k_max=20, beta=1.5)
+    #ducb.act_double(k_max=75, beta=1.1)
     ducbs.append(ducb)
 
 DUCB.plot_perf(ducbs)
