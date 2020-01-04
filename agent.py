@@ -1,7 +1,10 @@
-import numpy as np
+import math
 import random
 from scipy.stats import gamma
 
+import numpy as np
+
+from barriermethod import barr_method
 
 class DTS:
     def __init__(self, graph, alpha, T, prior_k=None, prior_theta=None):
@@ -212,6 +215,7 @@ class DUCB:
             else:
                 while U(mu) < 0:
                     mu *= 2
+                #U_vect.append(barr_method(mu_a, self.t, N_a, mu_a))
                 U_vect.append(dicho(U, mu / 2, mu))
         best = np.argwhere(U_vect == np.amax(U_vect))[0]
         return random.choice(best)
