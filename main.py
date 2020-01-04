@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import os
 
 from environment import SimpleSBM, SBM, SimpleCLM
-from agent import DUCB
+from agent import DUCB, DTS
+from time import time
 
 
 def plot_perf(algs, save_dir=None, rm_mode=False):
@@ -63,15 +64,15 @@ def plot_perf(algs, save_dir=None, rm_mode=False):
 
 # save_dir: directory in which will be saved figures
 # rm_mode: whether to raise an exception (False) or erase already existing figures (True)
-def test_graph(graph, alpha, T, n_rep, save_dir=None, rm_mode=False):
-    ducbs = []
+def test_graph(graph, alpha, T, n_rep, alg, save_dir=None, rm_mode=False):
+    algs = []
     for i in range(n_rep):
         print('Iteration {}/{}'.format(i+1, n_rep),)
-        ducb = DUCB(graph, alpha, T)
-        ducb.act()
-        ducbs.append(ducb)
-    plot_perf(ducbs, save_dir, rm_mode)
-    last_ducb = ducbs[-1]
+        alg_ins = alg(graph, alpha, T)
+        alg_ins.act()
+        algs.append(alg_ins)
+    plot_perf(algs, save_dir, rm_mode)
+    last_alg = algs[-1]
     if save_dir is not None:
         with open(save_dir + '/' + 'parameters.txt', 'w') as f:
             config = 'alpha: {}\n' \
@@ -80,13 +81,15 @@ def test_graph(graph, alpha, T, n_rep, save_dir=None, rm_mode=False):
                      'n_rep: {}\n' \
                      'mu*: {}\n' \
                      'alpha_mu*: {}\n' \
-                     'sample_size: {}'.format(alpha, last_ducb.alpha_lim, T, n_rep, last_ducb.mu_star,
-                                              last_ducb.alpha_mu_star, len(last_ducb.V0))
+                     'sample_size: {}'.format(alpha, last_alg.alpha_lim, T, n_rep, last_alg.mu_star,
+                                              last_alg.alpha_mu_star, len(last_alg.V0))
             f.write(str(graph)+'\n'+config)
 
 
 # graph = SimpleSBM(0.005, 0.1, [5,5,10,5,5])
 # graph = SimpleSBM(0.025, 0.1, [10, 20, 15, 30])
 # graph = SimpleCLM([0.8]*10+[0.1]*100)
-graph = SimpleSBM(0.001, 0.1, [20,20,40,20])
-test_graph(graph, 0.1, 5000, 2, 'results/SBM20', rm_mode=True)
+init_time = time()
+graph = SimpleSBM(0.0001, 0.1, [5]*19 + [20])
+test_graph(graph, 0.3, 1000, 2, DUCB, 'results/SBM26', rm_mode=True)
+print('Time: ', time() - init_time)
