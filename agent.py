@@ -1,14 +1,93 @@
 import numpy as np
 import random
+from scipy.stats import gamma
 
-# TODO: trouver comment choisir les parametres de graphe pour ne pas avoir une composante connexe uniquement
-# TODO: ou n composante connexes ... : un truc du genre p = 1/n pour l'exterieur et autre pour les diffs.
 
-# TODO: discussion avec Claire:
-# TODO - Reflechir a pourquoi RT_alpha plutot que juste RT
-# TODO - Pas de borne inferieure du regret dans le papier, alors que c'est usuel, pourquoi ?
-# TODO - Vérifier ce que le papier dit a propos de n pas trop grand.
-# TODO - Trouver des Kij qui ne verifient pas l'hypothese 1 et verifier/comprendre que ca marche aps
+class DTS:
+    def __init__(self, graph, alpha, T, prior_k=None, prior_theta=None):
+        self.graph = graph
+        self.alpha = alpha
+        self.T = T
+        self.alpha_lim = 1 - np.exp(-np.log(T) / np.log(graph.n))
+
+        if not alpha:
+            spl_size = graph.n
+        else:
+            candidate = np.ceil(np.log(T)/np.log(1/(1-alpha)))
+            if candidate > graph.n:
+                print('Alpha gave too many nodes for this T, taking graph.n')
+            spl_size = min(int(candidate), graph.n)
+        self.V0 = np.random.choice(range(graph.n), spl_size, False)
+        self.N = np.ones(spl_size, dtype=int)
+        self.t = 0
+
+        if prior_k is None:
+            self.gamma_k = np.ones(spl_size, dtype=np.float)
+        else:
+            self.gamma_k = prior_k
+
+        if prior_theta is None:
+            self.prior_theta = np.ones(spl_size, dtype=np.float)
+            self.gamma_theta = np.ones(spl_size, dtype=np.float)
+        else:
+            self.prior_theta = prior_theta.copy()
+            self.gamma_theta = prior_theta
+
+        # For logging
+        self.cum_reward = 0
+        self.cum_degree = 0
+        self.opt_cum_reward = 0
+        self.alpha_opt_cum_reward = 0
+        self.a_star = np.argmax(self.graph.P.sum(axis=0))
+        self.a_alpha_star = np.argsort(self.graph.P.sum(axis=0))[int((1 - alpha) * graph.P.shape[0])]
+        self.mu_star = self.graph.P.sum(axis=0)[self.a_star]
+        self.alpha_mu_star = self.graph.P.sum(axis=0)[self.a_alpha_star]
+
+        # List of values:
+        self.degree_regret = []
+        self.alpha_degree_regret = []
+        self.real_regret = []
+        self.alpha_real_regret = []
+        self.n_comps = []
+        self.degrees = []
+
+    def update_belief(self, a, d):
+        self.gamma_k[a] += d
+        self.gamma_theta[a] = self.prior_theta[a]/(self.N[a]*self.prior_theta[a]+1)
+
+    def act(self):
+        while self.t < self.T:
+            a = self.select_action()
+            d, c_list, n_comp = self.graph.observe_full(self.V0[a])
+            self.N[a] += 1
+            self.t += 1
+            self.update_belief(a, d)
+
+            self.cum_degree += d
+            self.cum_reward += c_list[self.V0[a]]
+            self.opt_cum_reward += c_list[self.a_star]
+            self.alpha_opt_cum_reward += c_list[self.a_alpha_star]
+            self.n_comps.append(n_comp)
+            self.degrees.append(d)
+
+            self.log()
+
+    def log(self):
+        self.degree_regret.append(self.t*self.mu_star - self.cum_degree)
+        self.alpha_degree_regret.append(self.t*self.alpha_mu_star - self.cum_degree)
+        self.real_regret.append(self.opt_cum_reward - self.cum_reward)
+        self.alpha_real_regret.append(self.alpha_opt_cum_reward - self.cum_reward)
+
+    def get_N(self):
+        N = np.zeros(self.graph.n, dtype=int)
+        N[self.V0] += self.N
+        return N
+
+    def select_action(self):
+        B = np.array([gamma.rvs(a=k, scale=theta) for k, theta in zip(self.gamma_k, self.gamma_theta)])
+        best = np.argwhere(B == np.amax(B))[0]
+        return random.choice(best)
+
 
 # Attention a ne pas confondre a et V0[a] !
 class DUCB:
@@ -62,8 +141,6 @@ class DUCB:
             self.alpha_opt_cum_reward += c_list[self.a_alpha_star]
             self.n_comps.append(n_comp)
             self.degrees.append(d)
-            # if self.t>1000:
-            #     print(c_list[self.a_alpha_star]-c_list[self.V0[a]])
 
             self.log()
 
@@ -140,7 +217,7 @@ class DUCB:
         return random.choice(best)
 
 
-def dicho(f, a, b, eps=0.01, tmax=1000):
+def dicho(f, a, b, eps=0.001, tmax=1000):
     for i in range(tmax):
         if abs(a-b) < eps:
             return a
