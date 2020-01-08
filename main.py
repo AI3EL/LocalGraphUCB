@@ -64,11 +64,11 @@ def plot_perf(algs, save_dir=None, rm_mode=False):
 
 # save_dir: directory in which will be saved figures
 # rm_mode: whether to raise an exception (False) or erase already existing figures (True)
-def test_graph(graph, alpha, T, n_rep, alg, save_dir=None, rm_mode=False):
+def test_graph(graph, alpha, T, n_rep, alg, save_dir=None, rm_mode=False, observe_full=True):
     algs = []
     for i in range(n_rep):
         print('Iteration {}/{}'.format(i+1, n_rep),)
-        alg_ins = alg(graph, alpha, T)
+        alg_ins = alg(graph, alpha, T, observe_full=observe_full)
         alg_ins.act()
         algs.append(alg_ins)
     plot_perf(algs, save_dir, rm_mode)
@@ -91,5 +91,20 @@ def test_graph(graph, alpha, T, n_rep, alg, save_dir=None, rm_mode=False):
 # graph = SimpleCLM([0.8]*10+[0.1]*100)
 init_time = time()
 graph = SimpleSBM(0.0001, 0.1, [5]*19 + [20])
-test_graph(graph, 0.3, 1000, 2, DUCB, 'results/SBM26', rm_mode=True)
-print('Time: ', time() - init_time)
+graph = SimpleSBM(0.0001, 0.1, [5]*1900 + [20]*100)
+#init_time = time()
+#test_graph(graph, 0.3, 1000, 10, DUCB, 'results/SBM28_SBM_DUCB', rm_mode=True)
+#print('Time1: ', time() - init_time)
+init_time = time()
+test_graph(graph, 0.3, 1000, 10, DUCB, 'results/SBM28_SBM_DUCB', rm_mode=True, observe_full=False)
+print('Time1: ', time() - init_time)
+init_time = time()
+test_graph(graph, 0.3, 1000, 10, DTS, 'results/SBM28_SBM_DTS', rm_mode=True, observe_full=False)
+print('Time2: ', time() - init_time)
+graph = SimpleCLM([0.8]*10+[0.1]*100)
+init_time = time()
+test_graph(graph, 0.3, 1000, 10, DUCB, 'results/SBM28_CLM_DUCB', rm_mode=True, observe_full=False)
+print('Time3: ', time() - init_time)
+init_time = time()
+test_graph(graph, 0.3, 1000, 10, DTS, 'results/SBM28_CLM_DTS', rm_mode=True, observe_full=False)
+print('Time4: ', time() - init_time)

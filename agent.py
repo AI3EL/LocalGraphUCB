@@ -7,11 +7,12 @@ import numpy as np
 from barriermethod import barr_method
 
 class DTS:
-    def __init__(self, graph, alpha, T, prior_k=None, prior_theta=None):
+    def __init__(self, graph, alpha, T, prior_k=None, prior_theta=None, observe_full=True):
         self.graph = graph
         self.alpha = alpha
         self.T = T
         self.alpha_lim = 1 - np.exp(-np.log(T) / np.log(graph.n))
+        self.observe_full = observe_full
 
         if not alpha:
             spl_size = graph.n
@@ -61,15 +62,25 @@ class DTS:
     def act(self):
         while self.t < self.T:
             a = self.select_action()
-            d, c_list, n_comp = self.graph.observe_full(self.V0[a])
+
+            if self.observe_full:
+                d, c_list, n_comp = self.graph.observe_full(self.V0[a])
+            else:
+                d, c_list, n_comp = self.graph.observe_degree(self.V0[a]), 0, 0
+
             self.N[a] += 1
             self.t += 1
             self.update_belief(a, d)
 
             self.cum_degree += d
-            self.cum_reward += c_list[self.V0[a]]
-            self.opt_cum_reward += c_list[self.a_star]
-            self.alpha_opt_cum_reward += c_list[self.a_alpha_star]
+            if self.observe_full:
+                self.cum_reward += c_list[self.V0[a]]
+                self.opt_cum_reward += c_list[self.a_star]
+                self.alpha_opt_cum_reward += c_list[self.a_alpha_star]
+            else:
+                self.cum_reward += 0
+                self.opt_cum_reward += 0
+                self.alpha_opt_cum_reward += 0
             self.n_comps.append(n_comp)
             self.degrees.append(d)
 
@@ -94,11 +105,12 @@ class DTS:
 
 # Attention a ne pas confondre a et V0[a] !
 class DUCB:
-    def __init__(self, graph, alpha, T):
+    def __init__(self, graph, alpha, T, observe_full=True):
         self.graph = graph
         self.alpha = alpha
         self.T = T
         self.alpha_lim = 1 - np.exp(-np.log(T) / np.log(graph.n))
+        self.observe_full = observe_full
 
         if not alpha:
             spl_size = graph.n
@@ -133,15 +145,24 @@ class DUCB:
     def act(self):
         while self.t < self.T:
             a = self.select_action()
-            d, c_list, n_comp = self.graph.observe_full(self.V0[a])
+
+            if self.observe_full:
+                d, c_list, n_comp = self.graph.observe_full(self.V0[a])
+            else:
+                d, c_list, n_comp = self.graph.observe_degree(self.V0[a]), 0, 0
             self.mu[a] = (self.N[a]*self.mu[a] + d)/(self.N[a]+1)
             self.N[a] += 1
             self.t += 1
 
             self.cum_degree += d
-            self.cum_reward += c_list[self.V0[a]]
-            self.opt_cum_reward += c_list[self.a_star]
-            self.alpha_opt_cum_reward += c_list[self.a_alpha_star]
+            if self.observe_full:
+                self.cum_reward += c_list[self.V0[a]]
+                self.opt_cum_reward += c_list[self.a_star]
+                self.alpha_opt_cum_reward += c_list[self.a_alpha_star]
+            else:
+                self.cum_reward += 0
+                self.opt_cum_reward += 0
+                self.alpha_opt_cum_reward += 0
             self.n_comps.append(n_comp)
             self.degrees.append(d)
 
