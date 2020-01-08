@@ -33,7 +33,7 @@ def plot_perf(algs, save_dir=None, rm_mode=False):
     xs = np.mean(bin_edges, axis=0)
     plt.plot(xs, mean)
     plt.fill_between(xs, mean - 2 * std, mean + 2 * std, alpha=0.15)
-    plt.title('Histogram of number of connected components (max={}'.format(algs[0].graph.n))
+    plt.title('Histogram of number of connected components')
     save_or_show('component_sizes_histogram', save_dir, rm_mode)
 
     # Histogram of number of times action was taken
