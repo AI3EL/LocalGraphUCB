@@ -1,13 +1,11 @@
-import math
 import random
 from scipy.stats import gamma
-
 import numpy as np
-
 from barriermethod import barr_method
 
-class DTS:
-    def __init__(self, graph, alpha, T, prior_k=None, prior_theta=None, observe_full=True):
+
+class Agent:
+    def __init__(self, graph, alpha, T, observe_full):
         self.graph = graph
         self.alpha = alpha
         self.T = T
@@ -15,27 +13,15 @@ class DTS:
         self.observe_full = observe_full
 
         if not alpha:
-            spl_size = graph.n
+            self.spl_size = graph.n
         else:
-            candidate = np.ceil(np.log(T)/np.log(1/(1-alpha)))
+            candidate = np.ceil(np.log(T) / np.log(1 / (1 - alpha)))
             if candidate > graph.n:
                 print('Alpha gave too many nodes for this T, taking graph.n')
-            spl_size = min(int(candidate), graph.n)
-        self.V0 = np.random.choice(range(graph.n), spl_size, False)
-        self.N = np.ones(spl_size, dtype=int)
+            self.spl_size = min(int(candidate), graph.n)
+        self.V0 = np.random.choice(range(graph.n), self.spl_size, False)
+        self.N = np.ones(self.spl_size, dtype=int)
         self.t = 0
-
-        if prior_k is None:
-            self.gamma_k = np.ones(spl_size, dtype=np.float)
-        else:
-            self.gamma_k = prior_k
-
-        if prior_theta is None:
-            self.prior_theta = np.ones(spl_size, dtype=np.float)
-            self.gamma_theta = np.ones(spl_size, dtype=np.float)
-        else:
-            self.prior_theta = prior_theta.copy()
-            self.gamma_theta = prior_theta
 
         # For logging
         self.cum_reward = 0
@@ -55,9 +41,37 @@ class DTS:
         self.n_comps = []
         self.degrees = []
 
+    def log(self):
+        self.degree_regret.append(self.t*self.mu_star - self.cum_degree)
+        self.alpha_degree_regret.append(self.t*self.alpha_mu_star - self.cum_degree)
+        self.real_regret.append(self.opt_cum_reward - self.cum_reward)
+        self.alpha_real_regret.append(self.alpha_opt_cum_reward - self.cum_reward)
+
+    def get_N(self):
+        N = np.zeros(self.graph.n, dtype=int)
+        N[self.V0] += self.N
+        return N
+
+
+class DTS(Agent):
+    def __init__(self, graph, alpha, T, observe_full, prior_k=None, prior_beta=None):
+
+        Agent.__init__(self, graph, alpha, T, observe_full)
+        if prior_k is None:
+            self.k = np.ones(self.spl_size, dtype=np.float)*2
+        else:
+            self.k = prior_k[self.V0]
+
+        if prior_beta is None:
+            self.beta = np.ones(self.spl_size, dtype=np.float)
+        else:
+            self.beta = prior_beta[self.V0]
+        self.prior_beta = self.beta.copy()
+        self.prior_k = self.k.copy()
+
     def update_belief(self, a, d):
-        self.gamma_k[a] += d
-        self.gamma_theta[a] = self.prior_theta[a]/(self.N[a]*self.prior_theta[a]+1)
+        self.k[a] += d
+        self.beta[a] += 1
 
     def act(self):
         while self.t < self.T:
@@ -86,61 +100,17 @@ class DTS:
 
             self.log()
 
-    def log(self):
-        self.degree_regret.append(self.t*self.mu_star - self.cum_degree)
-        self.alpha_degree_regret.append(self.t*self.alpha_mu_star - self.cum_degree)
-        self.real_regret.append(self.opt_cum_reward - self.cum_reward)
-        self.alpha_real_regret.append(self.alpha_opt_cum_reward - self.cum_reward)
-
-    def get_N(self):
-        N = np.zeros(self.graph.n, dtype=int)
-        N[self.V0] += self.N
-        return N
-
     def select_action(self):
-        B = np.array([gamma.rvs(a=k, scale=theta) for k, theta in zip(self.gamma_k, self.gamma_theta)])
+        B = np.array([gamma.rvs(a=k, scale=1./beta) for k, beta in zip(self.k, self.beta)])
         best = np.argwhere(B == np.amax(B))[0]
         return random.choice(best)
 
 
 # Attention a ne pas confondre a et V0[a] !
-class DUCB:
-    def __init__(self, graph, alpha, T, observe_full=True):
-        self.graph = graph
-        self.alpha = alpha
-        self.T = T
-        self.alpha_lim = 1 - np.exp(-np.log(T) / np.log(graph.n))
-        self.observe_full = observe_full
-
-        if not alpha:
-            spl_size = graph.n
-        else:
-            candidate = np.ceil(np.log(T)/np.log(1/(1-alpha)))
-            if candidate > graph.n:
-                print('Alpha gave too many nodes for this T, taking graph.n')
-            spl_size = min(int(candidate), graph.n)
-        self.V0 = np.random.choice(range(graph.n), spl_size, False)
+class DUCB(Agent):
+    def __init__(self, graph, alpha, T, observe_full):
+        Agent.__init__(self, graph, alpha, T, observe_full)
         self.mu = np.array([self.graph.observe_degree(i) for i in self.V0], dtype=np.float)
-        self.N = np.ones(spl_size, dtype=int)
-        self.t = spl_size
-
-        # For logging
-        self.cum_reward = 0
-        self.cum_degree = 0
-        self.opt_cum_reward = 0
-        self.alpha_opt_cum_reward = 0
-        self.a_star = np.argmax(self.graph.P.sum(axis=0))
-        self.a_alpha_star = np.argsort(self.graph.P.sum(axis=0))[int((1-alpha)*graph.P.shape[0])]
-        self.mu_star = self.graph.P.sum(axis=0)[self.a_star]
-        self.alpha_mu_star = self.graph.P.sum(axis=0)[self.a_alpha_star]
-
-        # List of values:
-        self.degree_regret = []
-        self.alpha_degree_regret = []
-        self.real_regret = []
-        self.alpha_real_regret = []
-        self.n_comps = []
-        self.degrees = []
 
     def act(self):
         while self.t < self.T:
@@ -195,6 +165,7 @@ class DUCB:
                 untouched = [i for i in list(range(self.graph.n)) if i not in self.V0]
                 Uk = np.random.choice(untouched, spl_size, False)
                 self.V0 = np.concatenate((self.V0, Uk))
+                print(self.V0.shape)
                 self.mu = np.concatenate((self.mu,
                                          np.array([self.graph.observe_degree(i) for i in Uk], dtype=np.float)))
                 self.N = np.concatenate((self.N, np.ones(spl_size, dtype=int)))
@@ -207,17 +178,6 @@ class DUCB:
             self.act()
 
             if end: break
-
-    def log(self):
-        self.degree_regret.append(self.t*self.mu_star - self.cum_degree)
-        self.alpha_degree_regret.append(self.t*self.alpha_mu_star - self.cum_degree)
-        self.real_regret.append(self.opt_cum_reward - self.cum_reward)
-        self.alpha_real_regret.append(self.alpha_opt_cum_reward - self.cum_reward)
-
-    def get_N(self):
-        N = np.zeros(self.graph.n, dtype=int)
-        N[self.V0] += self.N
-        return N
 
     # Etude derivee montre que f en V, min en mu_a. Donc mu* >= mua
     def select_action(self):
