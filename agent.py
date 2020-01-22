@@ -1,9 +1,10 @@
 import random
-from scipy.stats import gamma
+from scipy.stats import gamma, beta
 import numpy as np
 from barriermethod import barr_method
 
 
+# Parent class of DUCB and DTS
 class Agent:
     def __init__(self, graph, alpha, T, observe_full):
         self.graph = graph

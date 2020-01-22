@@ -1,6 +1,7 @@
 import numpy as np
 
 
+# Union-find structure for Connected Components
 class CC:
     def __init__(self, n):
         self.n = n
@@ -35,12 +36,14 @@ class InfluenceGraph:
         self.P = P
         self.n = P.shape[0]
 
+    # Returns only the degree, faster
     def observe_degree(self, a):
         r = np.random.rand(self.n-1)
         mask = np.ones(self.n, dtype=bool)
         mask[a] = False
         return sum((r < self.P[a][mask]).astype(int))
 
+    # Return size of CC along with degree, slower
     def observe_full(self, a):
         d = 0
         components = CC(self.n)
@@ -78,6 +81,8 @@ class SBM(InfluenceGraph):
         InfluenceGraph.__init__(self, P)
 
 
+# SBM verifying the assumption 1 of Lugosi et al., k_same is for K_{i,i}, k_diff for K_{i,j}
+#  and pops is the lengths of the populations.
 class SimpleSBM(SBM):
     def __init__(self, k_diff, k_same, pops):
         self.k_diff = k_diff

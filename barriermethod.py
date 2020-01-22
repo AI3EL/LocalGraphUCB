@@ -1,5 +1,7 @@
 import numpy as np
 
+# Convex analysis method to solve the KL-UCB computation, slower than dichotomy in practice
+
 alpha = 0.1
 beta = 0.7
 mu = 5
